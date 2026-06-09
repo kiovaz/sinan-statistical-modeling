@@ -1,1 +1,16 @@
+# Variáveis de ambiente
 .env
+
+# Ambientes virtuais Python
+.venv/
+venv/
+env/
+
+# Cache do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
