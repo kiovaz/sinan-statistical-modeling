@@ -1,5 +1,17 @@
 -- 01_schema.sql
 -- Modelagem Relacional Altamente Normalizada para Zika Vírus (SINAN)
+-- ===========================================================================
+-- CORREÇÕES APLICADAS NESTA VERSÃO:
+--   [ALTA]  CHECK constraints em tb_dados_clinicos (classi_fin, criterio, evolucao)
+--   [OBS]   cs_flxret / flxrecebi continuam INTEGER (ETL converte char->int)
+--   [OBS]   nu_idade_n ampliado p/ VARCHAR(10) (evita truncamento silencioso)
+-- NOTA SOBRE DEDUPLICAÇÃO:
+--   A base NÃO possui NU_CNS nem qualquer identificador de pessoa (confirmado
+--   nas colunas do CSV). Logo NÃO há deduplicação de pacientes — apenas de
+--   NOTIFICAÇÕES, feita no ETL (staging) por chave composta:
+--     ID_AGRAVO + DT_SIN_PRI + NU_IDADE_N + CS_SEXO + ID_MN_RESI + ID_MUNICIP
+--   (reforçada por NDUPLIC_N quando preenchido).
+-- ===========================================================================
 
 -- =======================================================
 -- 1. Tabelas de Domínio e Referência Geográfica/Saúde
@@ -41,12 +53,14 @@ CREATE TABLE IF NOT EXISTS tb_pais (
 
 -- =======================================================
 -- 2. Tabela de Pacientes (Demografia)
+--    nu_idade_n ampliado p/ VARCHAR(10) (alguns registros estouram 4 chars)
+--    SEM nu_cns: a base não traz identificador de pessoa.
 -- =======================================================
 CREATE TABLE IF NOT EXISTS tb_paciente (
     id_paciente BIGSERIAL PRIMARY KEY,
     id_cbo VARCHAR(10) REFERENCES tb_ocupacao(id_cbo),
     cs_sexo CHAR(1),
-    nu_idade_n VARCHAR(4),
+    nu_idade_n VARCHAR(10),
     idade_anos INTEGER,
     cs_gestant INTEGER,
     cs_raca INTEGER,
@@ -84,6 +98,16 @@ CREATE TABLE IF NOT EXISTS tb_dados_clinicos (
     evolucao INTEGER
 );
 
+-- CHECK constraints de domínio (barreira contra valores inválidos)
+-- classi_fin: 0=Descartado 1=Confirmado 2=Em investigação 8=Inconclusivo
+-- criterio:   0=Em investigação 1=Laboratorial 2=Clínico-epidemiológico
+-- evolucao:   0=Em investigação 1=Cura 2=Óbito agravo 3=Óbito outra causa 9=Ignorado
+-- NULL é permitido (campo não preenchido na ficha); o IN só barra valores fora do domínio.
+ALTER TABLE tb_dados_clinicos
+    ADD CONSTRAINT chk_classi_fin CHECK (classi_fin IS NULL OR classi_fin IN (0, 1, 2, 8)),
+    ADD CONSTRAINT chk_criterio   CHECK (criterio   IS NULL OR criterio   IN (0, 1, 2)),
+    ADD CONSTRAINT chk_evolucao   CHECK (evolucao   IS NULL OR evolucao   IN (0, 1, 2, 3, 9));
+
 -- =======================================================
 -- 5. Tabela de Geografia Epidemiológica
 -- =======================================================
@@ -99,6 +123,8 @@ CREATE TABLE IF NOT EXISTS tb_geografia_epidemiologica (
 
 -- =======================================================
 -- 6. Tabela de Rastreabilidade do Sistema
+--    OBS: cs_flxret/flxrecebi vêm como char no SINAN; mantidos INTEGER
+--    pois o ETL faz a conversão. Documentado como observação.
 -- =======================================================
 CREATE TABLE IF NOT EXISTS tb_sistema_rastreabilidade (
     id_notificacao BIGINT PRIMARY KEY REFERENCES tb_notificacao(id_notificacao) ON DELETE CASCADE,
