@@ -5,3 +5,10 @@ seaborn
 psycopg2-binary
 python-dotenv
 ipykernel
+dotenv
+streamlit
+plotly
+prophet 
+statsmodels 
+scikit-learn
+sqlalchemy
