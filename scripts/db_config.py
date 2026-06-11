@@ -23,11 +23,11 @@ load_dotenv()
 # Caminho do CSV via ambiente, com fallback relativo ao projeto.
 CSV_PATH = os.environ.get(
     "ZIKA_CSV_PATH",
-    os.path.join(os.path.dirname(__file__), "ZIKA_BR_2018_2026_UNIFICADO.csv"),
+    os.path.join(os.path.dirname(__file__), "..", "csv", "ZIKA_BR_2018_2026_UNIFICADO.csv"),
 )
 
 # Pasta onde ficam os scripts SQL (01_schema.sql etc.)
-SQL_DIR = os.environ.get("SQL_DIR", os.path.join(os.path.dirname(__file__), "sql"))
+SQL_DIR = os.environ.get("SQL_DIR", os.path.join(os.path.dirname(__file__), "..", "sql"))
 
 
 def get_connection():
