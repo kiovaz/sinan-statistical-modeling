@@ -1,4 +1,26 @@
+"""
+etl.py — Pipeline ETL para a base ZIKA/SINAN (modelo normalizado)
 
+Fluxo (Extract -> Transform -> Load):
+  1. EXTRACT  : lê o CSV bruto em memória (com dtype=str para não perder zeros).
+  2. TRANSFORM: limpa tipos, decodifica idade, trata inconsistências clínicas
+                e DEDUPLICA por chave composta (sem identificador de pessoa).
+  3. LOAD     : popula dimensões e depois as tabelas fato, em ordem de FK,
+                com alinhamento seguro entre paciente e notificação.
+
+Decisões de projeto (ver conversa):
+  - Deduplicação no pandas, ANTES de carregar (mais eficiente p/ 236k linhas
+    e elimina o risco de desalinhamento entre lotes).
+  - Chave de duplicidade de NOTIFICAÇÃO:
+      ID_AGRAVO + DT_SIN_PRI + NU_IDADE_N + CS_SEXO + ID_MN_RESI + ID_MUNICIP
+    reforçada por NDUPLIC_N quando preenchido.
+  - Representante mantido por grupo: registro mais COMPLETO (menos campos
+    vazios); empate -> DT_DIGITA mais antiga; empate -> menor índice.
+  - Removidos são gravados em duplicatas_removidas.csv (trilha de auditoria).
+  - idade_anos é calculada aqui (não fica mais None).
+  - Inconsistências clínicas que a trigger bloqueante barraria são corrigidas
+    em transform, para não derrubar lotes inteiros na carga.
+"""
 import sys
 from datetime import datetime
 
@@ -177,10 +199,32 @@ def carregar_dimensoes(conn, df):
     # As dimensões do seed (04) já trazem nomes corretos; aqui usamos
     # ON CONFLICT DO NOTHING para apenas COMPLETAR o que faltar, sem
     # sobrescrever o que o seed populou.
-    ufs_data = [(clean_int(u), str(u), "Desconhecido") for u in ufs if clean_int(u) is not None]
+    # Mapa código IBGE (2 díg.) -> sigla, para não inserir UF com sigla errada
+    # caso alguma não esteja no seed.
+    UF_SIGLA = {
+        11: "RO", 12: "AC", 13: "AM", 14: "RR", 15: "PA", 16: "AP", 17: "TO",
+        21: "MA", 22: "PI", 23: "CE", 24: "RN", 25: "PB", 26: "PE", 27: "AL",
+        28: "SE", 29: "BA", 31: "MG", 32: "ES", 33: "RJ", 35: "SP", 41: "PR",
+        42: "SC", 43: "RS", 50: "MS", 51: "MT", 52: "GO", 53: "DF",
+    }
+    ufs_data = [(clean_int(u), UF_SIGLA.get(clean_int(u), str(u)), "Desconhecido")
+                for u in ufs if clean_int(u) is not None]
     execute_values(cur, "INSERT INTO tb_uf (id_uf, sg_uf, nm_uf) VALUES %s ON CONFLICT DO NOTHING", ufs_data)
 
-    mun_data = [(clean_int(m), None, f"Município {clean_int(m)}", None)
+    # id_uf é derivado dos 2 PRIMEIROS dígitos do código IBGE do município
+    # (ex.: 3550308 -> 35 = SP). Sem isso, os JOINs município->UF falham e as
+    # views por UF (vw_casos_uf_ano, fn_resumo_epidemiologico) retornam vazio.
+    # IMPORTANTE: só atribui se o prefixo for uma UF REAL (está em UF_SIGLA).
+    # Códigos inválidos do SINAN (ex.: 9999999, 0000000) ficam com id_uf NULL,
+    # evitando violar a foreign key tb_municipio_id_uf_fkey.
+    def uf_do_municipio(cod):
+        try:
+            uf = int(str(int(cod))[:2])
+            return uf if uf in UF_SIGLA else None
+        except (ValueError, TypeError):
+            return None
+
+    mun_data = [(clean_int(m), uf_do_municipio(m), f"Município {clean_int(m)}", None)
                 for m in municipios if clean_int(m) is not None]
     execute_values(cur, "INSERT INTO tb_municipio (id_municipio, id_uf, nm_municipio, id_regional) VALUES %s ON CONFLICT DO NOTHING", mun_data)
 
