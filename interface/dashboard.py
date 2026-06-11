@@ -291,7 +291,7 @@ if not df_gest.empty:
         fig_gest_bar = px.bar(
             df_gest,
             x="Trimestre_Label",
-            y=["total_gestantes_notificadas", "gestantes_confirmadas_zika"],
+            y=["Total de gestantes notificadas", "Casos de zika confirmados em gestantes"],
             barmode="group",
             labels={"value": "Total de Pacientes", "Trimestre_Label": "Período Gestacional", "variable": "Status"},
             title=f"Notificadas vs. Confirmadas por Trimestre Gestacional ({ano_selecionado})"
