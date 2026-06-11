@@ -141,41 +141,31 @@ with col_esq:
     df_temporal = run_query(query_temporal, (ano_selecionado,))
     
     if not df_temporal.empty:
+        df_temporal = df_temporal.dropna(subset=['sem_pri']).copy()
+        df_temporal['sem_pri'] = df_temporal['sem_pri'].astype(float).astype(int).astype(str)
+        
+        # 2. Cria a máscara visual amigável (Muda de "202601" para "2026 - Sem 01")
+        df_temporal['semana_formatada'] = df_temporal['sem_pri'].apply(
+            lambda x: f"{x[:4]} - Sem {x[4:]}" if len(x) == 6 else x
+        )
+        # ==============================================================================
+
         fig_temp = px.line(
             df_temporal, 
-            x="sem_pri", 
+            x="semana_formatada",  # <--- MUDADO AQUI: usa a nova coluna tratada como texto
             y=["total_casos", "casos_confirmados"],
-            labels={"sem_pri": "Semana Epidemiológica", "value": "Nº de Casos", "variable": "Indicador"},
+            # Labels corrigidas para os eixos não ficarem com os nomes invertidos
+            labels={"semana_formatada": "Semana Epidemiológica", "value": "Nº de Casos", "variable": "Indicador"},
             title=f"Casos por Semana Epidemiológica - Sintomas (sem_pri)",
             markers=True
         )
-        fig_temp.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-        st.plotly_chart(fig_temp, use_container_width=True)
-    else:
-        st.info(f"Sem dados temporais registrados no banco para o ano {ano_selecionado}.")
-
-with col_dir:
-    st.markdown(f"#### 🗺️ Distribuição Geográfica por UF ({ano_selecionado})")
-    
-    query_uf = """
-        SELECT sg_uf, total_notificacoes, casos_confirmados 
-        FROM vw_casos_uf_ano 
-        WHERE nu_ano = %s 
-        LIMIT 10;
-    """
-    df_uf = run_query(query_uf, (ano_selecionado,))
-    
-    if not df_uf.empty:
-        fig_uf = px.bar(
-            df_uf, 
-            x="sg_uf", 
-            y="casos_confirmados",
-            text="casos_confirmados",
-            labels={"sg_uf": "Estado (UF)", "casos_confirmados": "Casos Confirmados"},
-            title="Top 10 UFs com Maior Volume de Casos Confirmados"
+        
+        # Garante que o Plotly trate o eixo X estritamente como categorias textuais sequenciais
+        fig_temp.update_layout(
+            xaxis=dict(type='category', tickangle=45),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
-        fig_uf.update_traces(texttemplate='%{text}', textposition='outside')
-        st.plotly_chart(fig_uf, use_container_width=True)
+                st.plotly_chart(fig_uf, use_container_width=True)
     else:
         st.info(f"Sem dados geográficos registrados no banco para o ano {ano_selecionado}.")
 
