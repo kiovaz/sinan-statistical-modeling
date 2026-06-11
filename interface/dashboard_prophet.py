@@ -1,5 +1,5 @@
 """
-📊 Dashboard — Zika Vírus SINAN 2018-2026
+Dashboard — Zika Vírus SINAN 2018-2026
 Baseado na análise estatística do notebook analise_estatistica.ipynb
 """
 
@@ -24,7 +24,7 @@ st.set_page_config(
     page_title="Zika Vírus — SINAN 2018-2026",
     page_icon="🦟",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # Paleta epidemiológica (mesma do notebook)
@@ -38,6 +38,8 @@ COR_DESTAQUE   = "#F4A261"
 st.markdown("""
 <style>
     .block-container { padding-top: 1.5rem; }
+    [data-testid="collapsedControl"] { display: none; }
+    [data-testid="stSidebar"]        { display: none; }
     .metric-card {
         background: #f8f9fa;
         border-left: 4px solid #E63946;
@@ -88,66 +90,12 @@ def get_engine(database_url: str):
 def query_df(_engine, sql: str) -> pd.DataFrame:
     return pd.read_sql(sql, _engine)
 
+# Conexão automática via variáveis de ambiente / .env
+database_url = build_database_url()
 
-# ─────────────────────────────────────────
-# Sidebar — Conexão
-# ─────────────────────────────────────────
-with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/commons/7/72/Logo_datasus.png", width=120)
-    st.title("🦟 Zika SINAN")
-    st.caption("2018 – 2026 | 236.398 notificações")
-    st.divider()
-
-    st.subheader("🔌 Conexão com o Banco")
-    modo = st.radio("Fonte das credenciais:", ["Variáveis de ambiente / .env", "Inserir manualmente"])
-
-    database_url = None
-
-    if modo == "Variáveis de ambiente / .env":
-        database_url = build_database_url()
-        if database_url:
-            st.success("✅ Credenciais detectadas")
-        else:
-            st.error("❌ Nenhuma variável encontrada.\nCrie um arquivo `.env` na mesma pasta.")
-    else:
-        pg_host     = st.text_input("Host", placeholder="host.neon.tech")
-        pg_user     = st.text_input("Usuário")
-        pg_password = st.text_input("Senha", type="password")
-        pg_database = st.text_input("Database")
-        sslmode     = st.selectbox("SSL", ["require", "disable", "allow", "prefer"])
-        if all([pg_host, pg_user, pg_password, pg_database]):
-            database_url = (
-                f"postgresql+psycopg2://{quote_plus(pg_user)}:{quote_plus(pg_password)}"
-                f"@{pg_host}/{pg_database}?sslmode={sslmode}"
-            )
-
-    st.divider()
-    st.caption("Fonte: SINAN — DataSUS/MS\nSchema: 01_schema.sql | Views: 03_views.sql")
-
-
-# ─────────────────────────────────────────
-# Tela de boas-vindas se sem conexão
-# ─────────────────────────────────────────
 if not database_url:
-    st.title("📊 Dashboard — Zika Vírus SINAN 2018-2026")
-    st.warning("👈 Configure a conexão com o banco na barra lateral para começar.")
-    st.markdown("""
-    **Variáveis aceitas no `.env`:**
-    ```
-    DATABASE_URL=postgresql+psycopg2://user:pass@host/db?sslmode=require
-    ```
-    *ou separadas:*
-    ```
-    PGUSER=seu_usuario
-    PGPASSWORD=sua_senha
-    PGHOST=host.neon.tech
-    PGDATABASE=nome_do_banco
-    PGSSLMODE=require
-    ```
-    """)
+    st.error("Credenciais do banco não encontradas.")
     st.stop()
-
-
 # ─────────────────────────────────────────
 # Conecta ao banco
 # ─────────────────────────────────────────
@@ -161,14 +109,14 @@ except Exception as e:
 # ─────────────────────────────────────────
 # Header principal
 # ─────────────────────────────────────────
-st.title("📊 Dashboard — Zika Vírus SINAN 2018-2026")
+st.title("Zika Vírus SINAN 2018-2026")
 st.caption("Análise epidemiológica | Fonte: SINAN — DataSUS/MS")
 
 tab1, tab2, tab3, tab4 = st.tabs([
-    "📈 Sazonalidade",
-    "🗺️ Tendência por UF",
-    "🔮 Previsão (Prophet)",
-    "🎯 Clustering (K-Means)",
+    "Sazonalidade",
+    "Tendência por UF",
+    "Previsão (Prophet)",
+    "Clustering (K-Means)",
 ])
 
 
@@ -270,7 +218,7 @@ with tab1:
         st.plotly_chart(fig_heat, use_container_width=True)
 
     # ── 1.3 Decomposição sazonal ──
-    with st.expander("🔬 Decomposição Sazonal (Tendência + Sazonalidade + Resíduo)", expanded=False):
+    with st.expander("Decomposição Sazonal (Tendência + Sazonalidade + Resíduo)", expanded=False):
         st.info("Decomposição aditiva com período de 52 semanas.")
         try:
             from statsmodels.tsa.seasonal import seasonal_decompose
@@ -392,7 +340,7 @@ with tab2:
         st.plotly_chart(fig_rank, use_container_width=True)
 
     # ── Tabela interativa ──
-    with st.expander("📋 Tabela completa por UF e Ano"):
+    with st.expander("Tabela completa por UF e Ano"):
         uf_sel = st.multiselect("Filtrar por UF:", sorted(df_uf["sg_uf"].unique()), default=[])
         df_show = df_uf if not uf_sel else df_uf[df_uf["sg_uf"].isin(uf_sel)]
         st.dataframe(
@@ -406,7 +354,7 @@ with tab2:
 # TAB 3 — PROPHET
 # ═══════════════════════════════════════════════════════════
 with tab3:
-    st.header("🔮 Previsão de Casos — Prophet")
+    st.header("Previsão de Casos — Prophet")
     st.caption(
         "Modelo aditivo de séries temporais (Meta / Prophet) com "
         "sazonalidade anual e tendência flexível."
@@ -417,7 +365,7 @@ with tab3:
         periodos = st.slider("Semanas de previsão:", 4, 104, 52, step=4)
         cp_scale = st.slider("Flexibilidade da tendência (changepoint_prior_scale):", 0.01, 0.5, 0.05)
 
-    if st.button("🚀 Treinar Prophet e gerar previsão", type="primary"):
+    if st.button("Treinar Prophet e gerar previsão", type="primary"):
         try:
             from prophet import Prophet
 
@@ -451,7 +399,7 @@ with tab3:
                 futuro   = modelo.make_future_dataframe(periods=periodos, freq="W")
                 previsao = modelo.predict(futuro)
 
-            st.success(f"✅ Modelo treinado | Previsão até {previsao['ds'].max().date()}")
+            st.success(f"Modelo treinado | Previsão até {previsao['ds'].max().date()}")
 
             # ── Gráfico principal ──
             st.subheader("Histórico + Previsão")
@@ -527,7 +475,7 @@ with tab3:
                 st.plotly_chart(fig_seas, use_container_width=True)
 
             # ── Tabela de previsão futura ──
-            with st.expander("📋 Valores previstos — próximas semanas"):
+            with st.expander("Valores previstos — próximas semanas"):
                 fut_only = previsao[previsao["ds"] > ult_historico][
                     ["ds", "yhat", "yhat_lower", "yhat_upper"]
                 ].copy()
@@ -548,7 +496,7 @@ with tab3:
 # TAB 4 — K-MEANS
 # ═══════════════════════════════════════════════════════════
 with tab4:
-    st.header("🎯 Agrupamento de Municípios — K-Means")
+    st.header("Agrupamento de Municípios — K-Means")
     st.caption(
         "Clusterização por perfil epidemiológico: "
         "alta incidência, subnotificação ou baixo risco."
@@ -589,7 +537,7 @@ with tab4:
             st.error(f"Erro ao carregar municípios: {e}")
             st.stop()
 
-    st.success(f"✅ {len(df_mun)} municípios com ≥ 10 notificações carregados")
+    st.success(f"{len(df_mun)} municípios com ≥ 10 notificações carregados")
 
     FEATURES = [
         "total_notificacoes", "confirmados", "obitos",
@@ -649,7 +597,7 @@ with tab4:
         fig_sil.update_layout(height=300, margin=dict(t=35, b=20))
         st.plotly_chart(fig_sil, use_container_width=True)
 
-    st.info(f"🏆 K sugerido pelo Silhouette: **{melhor_k}** (score = {max(sil_scores):.4f})")
+    st.info(f"K sugerido pelo Silhouette: **{melhor_k}** (score = {max(sil_scores):.4f})")
 
     # ── Clustering final ──
     st.subheader("Clustering Final")
@@ -712,7 +660,7 @@ with tab4:
     fig_perfil.update_layout(height=380, margin=dict(t=40))
     st.plotly_chart(fig_perfil, use_container_width=True)
 
-    with st.expander("📋 Tabela de perfil + ranking de municípios por cluster"):
+    with st.expander("Tabela de perfil + ranking de municípios por cluster"):
         st.markdown("**Perfil médio:**")
         st.dataframe(perfil, use_container_width=True)
 
