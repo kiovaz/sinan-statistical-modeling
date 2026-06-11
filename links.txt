@@ -1,0 +1,2 @@
+https://sinan-statistical-modeling.streamlit.app/
+https://sinan-statistical-modeling-prophet.streamlit.app/
