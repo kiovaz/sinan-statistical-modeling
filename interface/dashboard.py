@@ -141,6 +141,10 @@ with col_esq:
     df_temporal = run_query(query_temporal, (ano_selecionado,))
     
     if not df_temporal.empty:
+        # ==============================================================================
+        # INSERÇÃO DO AJUSTE EXATAMENTE AQUI:
+        # ==============================================================================
+        # 1. Remove nulos, limpa decimais fictícios e garante formato texto puro (Ex: "202601")
         df_temporal = df_temporal.dropna(subset=['sem_pri']).copy()
         df_temporal['sem_pri'] = df_temporal['sem_pri'].astype(float).astype(int).astype(str)
         
@@ -165,7 +169,33 @@ with col_esq:
             xaxis=dict(type='category', tickangle=45),
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
-                st.plotly_chart(fig_uf, use_container_width=True)
+        
+        st.plotly_chart(fig_temp, use_container_width=True)
+    else:
+        st.info(f"Sem dados temporais registrados no banco para o ano {ano_selecionado}.")
+
+with col_dir:
+    st.markdown(f"#### 🗺️ Distribuição Geográfica por UF ({ano_selecionado})")
+    
+    query_uf = """
+        SELECT sg_uf, total_notificacoes, casos_confirmados 
+        FROM vw_casos_uf_ano 
+        WHERE nu_ano = %s 
+        LIMIT 10;
+    """
+    df_uf = run_query(query_uf, (ano_selecionado,))
+    
+    if not df_uf.empty:
+        fig_uf = px.bar(
+            df_uf, 
+            x="sg_uf", 
+            y="casos_confirmados",
+            text="casos_confirmados",
+            labels={"sg_uf": "Estado (UF)", "casos_confirmados": "Casos Confirmados"},
+            title="Top 10 UFs com Maior Volume de Casos Confirmados"
+        )
+        fig_uf.update_traces(texttemplate='%{text}', textposition='outside')
+        st.plotly_chart(fig_uf, use_container_width=True)
     else:
         st.info(f"Sem dados geográficos registrados no banco para o ano {ano_selecionado}.")
 
